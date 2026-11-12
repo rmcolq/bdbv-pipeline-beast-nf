@@ -1,133 +1,93 @@
-# BDBV Phylodynamics Pipeline (Part 2)
+# BDBV Phylodynamics Pipeline (Part 2) — Nextflow
 
-BEAST XML generation, postprocessing, and analysis for Bundibugyo ebolavirus phylodynamics. Picks up where `bdbv-pipeline` (Part 1) leaves off — takes a final alignment and ML tree as input.
+**BEAST XML generation and postprocessing for Bundibugyo ebolavirus (BDBV) phylodynamics**
 
-## Setup
+A [Nextflow](https://www.nextflow.io/) port of [`bdbv-pipeline-part2`](https://github.com/rmcolq/bdbv-pipeline-part2). It picks up where [`bdbv-pipeline-nf`](https://github.com/rmcolq/bdbv-pipeline-nf) (Part 1) leaves off, taking its final alignment as input. BEAST itself is run outside this pipeline, so there are two stages, used one after the other.
 
-All commands use the `bdbv` conda environment:
+## Pipeline overview
+
+1. **Generate BEAST XMLs** *(`generate_xmls`, with `--alignment`)* — swap the alignment into the templates, update the SkyGrid parameters, adjust operator weights and set the chain length and log interval. One XML per template.
+2. *Run BEAST on the XMLs yourself.*
+3. **Postprocess logs** *(`postprocess_logs`, with `--beast_dir`)* — combine chain logs, remove burnin and check ESS (**ESS gate**).
+4. **Postprocess trees** *(`postprocess_trees`)* — remove burnin, resample and build an MCC tree with TreeAnnotator.
+
+Figures and report generation are not yet implemented in the Python version, so they are not part of this pipeline either.
+
+## Installation
+
+Install [Nextflow](https://www.nextflow.io/) (≥ 23.04) and [Docker](https://www.docker.com/products/docker-desktop), then clone this repository:
 
 ```bash
-mamba run --live-stream -n bdbv python bin/run.py ...
+git clone https://github.com/rmcolq/bdbv-pipeline-beast-nf.git
+cd bdbv-pipeline-beast-nf
 ```
 
-[TreeAnnotator](https://beast.community/treeannotator) must be available on `PATH` for MCC tree generation.
+The pipeline pulls the `articnetworkorg/bdbv-pipeline-beast` image automatically (built from `Dockerfile` by `.github/workflows/docker.yml`). Other options: `-profile singularity`, `-profile conda` (uses `environment.yml`), or `--wf.container_version TAG` for your own build.
 
-## Usage
+## Running the pipeline
 
-### `run.py` — single entry point
-
-Generate BEAST XMLs from a pipeline 1 output:
+**Generate BEAST XMLs** from the final alignment of Part 1:
 
 ```bash
-mamba run --live-stream -n bdbv python bin/run.py \
+nextflow run . \
     --alignment /path/to/BDBV2026.drc.ADAR_masked.final.aln \
     --outdir output/20261106 \
     --prefix BDBV2026.drc \
-    --template-sg templates/GTR_SG_MAT.template.xml \
-    --anchor-date 2025-11-08 \
-    --stop-after generate_xmls
+    --anchor_date 2025-11-08
 ```
 
-Postprocess BEAST output (logs + trees):
+The XMLs are written to `beast_xml/`. By default one XML is made from each of the SkyGrid and EGC templates. Use `--template_mat templates/GTR_SG_MAT.template.xml` for the MAT SkyGrid template, or `--template_sg false` to skip one.
+
+**Postprocess BEAST output** once the runs have finished:
 
 ```bash
-mamba run --live-stream -n bdbv python bin/run.py \
-    --beast-dir /path/to/beast/output \
+nextflow run . \
+    --beast_dir /path/to/beast/output \
     --outdir output/20261106 \
     --prefix BDBV2026.drc \
-    --burnin 0.1 \
-    --skip-to postprocess_logs \
-    --stop-after postprocess_trees
+    --burnin 0.1
 ```
-
-### Steps
-
-| Step | Name | Description |
-|------|------|-------------|
-| 1 | `generate_xmls` | Generate BEAST XMLs from alignment + templates |
-| 2 | `postprocess_logs` | Combine chain logs, remove burnin, check ESS |
-| 3 | `postprocess_trees` | Burnin-remove trees, resample, generate MCC |
-| 4 | `generate_figures` | *(TODO)* |
-| 5 | `generate_report` | *(TODO)* |
-
-Use `--skip-to <step>` and `--stop-after <step>` to run specific steps.
 
 ### ESS gate
 
-Step 2 checks ESS for key parameters (posterior, likelihood, root height, clock rate, SkyGrid parameters, etc.). If any key parameter has ESS below the threshold (default 200), the pipeline stops and reports which parameters are under-sampled.
+After combining the logs the pipeline checks ESS for the key parameters (posterior, likelihood, root height, clock rate, SkyGrid parameters, etc.). If any is below `--min_ess` (default 200) it stops before the trees and tells you how to proceed. Review `postprocess_logs/<prefix>.ess_report.txt`, then either:
 
-Options when ESS is too low:
-1. Run more BEAST chains and re-run postprocessing
-2. Pass `--force-low-ess` to continue anyway
-3. Re-enter at step 3: `--skip-to postprocess_trees --force-low-ess`
+1. Run more BEAST chains, add their logs and trees to `--beast_dir`, and rerun
+2. Continue anyway: rerun with `--force_low_ess -resume`
 
-### Key flags
+## Output files
 
-| Flag | Description |
-|------|-------------|
-| `--alignment` | Final alignment from pipeline 1 (required for step 1) |
-| `--beast-dir` | Directory with BEAST output (required for steps 2-3) |
-| `--outdir` | Output directory |
-| `--prefix` | Output file prefix |
-| `--template-sg` | SkyGrid template XML |
-| `--template-egc` | EGC template XML |
-| `--template-mat` | MAT SkyGrid template XML |
-| `--anchor-date` | SkyGrid anchor date (default: `2025-11-08`) |
-| `--chain-length` | MCMC chain length (default: 500M) |
-| `--log-every` | Log interval (default: 50000) |
-| `--burnin` | Burnin fraction (default: 0.1) |
-| `--resample` | Target tree count after resampling (default: 1000) |
-| `--min-ess` | Minimum ESS for key parameters (default: 200) |
-| `--force-low-ess` | Continue past ESS check despite low values |
-| `--linelist` | Genomic linelist Excel (for figures) |
-| `--sitrep` | Sitrep CSV (for figures) |
-| `--case-data` | status_aggregated CSV (for figures) |
-| `--skip-to` | Skip to a specific step |
-| `--stop-after` | Stop after a specific step |
+| Folder | Contents |
+|--------|----------|
+| `beast_xml/` | Generated BEAST XMLs |
+| `postprocess_logs/` | Combined log, ESS report and `ess_status.txt` (`pass` or `low`) |
+| `postprocess_trees/` | Burnin-removed trees, resampled trees and MCC tree |
+| `execution/` | Nextflow timeline, report and trace |
 
-## Individual scripts
+## Parameters
 
-### `generate_beast_xml.py`
+See `nextflow_schema.json` for the full definitions.
 
-Generate BEAST XML files from templates. Swaps in alignment, updates SkyGrid parameters, adjusts operator weights.
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--alignment` | Final alignment from Part 1; generates BEAST XMLs | |
+| `--beast_dir` | Folder of BEAST `.log` and `.trees` files; runs postprocessing | |
+| `--outdir` | Output folder | `output` |
+| `--prefix` | Output file prefix | `bdbv_<run_name>` |
+| `--run_name` | Label used in the default prefix | today, `YYYYMMDD` |
+| `--template_sg`, `--template_mat`, `--template_egc`, `--template_lgc` | Templates; one XML per template given. Use `false` to skip a default | SG and EGC |
+| `--anchor_date` | SkyGrid anchor date | `2025-11-08` |
+| `--chain_length` | MCMC chain length | `500000000` |
+| `--log_every` | Log sampling interval | `50000` |
+| `--burnin` | Burnin fraction | `0.1` |
+| `--resample` | Target tree count after resampling | `1000` |
+| `--min_ess` | Minimum ESS for key parameters | `200` |
+| `--force_low_ess` | Continue past a low ESS | `false` |
+| `--treeannotator` | TreeAnnotator executable | `treeannotator` |
 
-```bash
-mamba run --live-stream -n bdbv python bin/generate_beast_xml.py \
-    -a /path/to/final.aln \
-    -o output/ \
-    -p BDBV2026.drc.n1150 \
-    --template-sg templates/GTR_SG_MAT.template.xml \
-    --anchor-date 2025-11-08
-```
+## Running the Python scripts without Nextflow
 
-### `postprocess_logs.py`
-
-Combine BEAST chain logs, remove burnin, compute ESS for all parameters. Exits with code 2 if key parameters have ESS below threshold.
-
-```bash
-mamba run --live-stream -n bdbv python bin/postprocess_logs.py \
-    --logs run1.log run2.log \
-    --burnin 0.1 \
-    --outdir output/ \
-    --prefix analysis
-```
-
-Outputs: `{prefix}.combined.log`, `{prefix}.ess_report.txt`
-
-### `postprocess_trees.py`
-
-Remove burnin from `.trees` files, resample to manageable count, generate MCC tree via TreeAnnotator.
-
-```bash
-mamba run --live-stream -n bdbv python bin/postprocess_trees.py \
-    --trees run1.trees run2.trees \
-    --burnin 0.1 \
-    --resample 1000 \
-    --outdir output/ \
-    --prefix analysis
-```
-
-Outputs: `{prefix}.burninRemoved.trees`, `{prefix}.burninRemoved.resampled.trees`, `{prefix}.mcc.tree`
+The scripts in `bin/` still work on their own (`bin/run.py` is the original single entry point). They only need Python ≥ 3.10, plus [TreeAnnotator](https://beast.community/treeannotator) on `PATH` for the MCC tree; `conda env create -f environment.yml` provides both.
 
 ## Data files
 
@@ -137,5 +97,6 @@ Outputs: `{prefix}.burninRemoved.trees`, `{prefix}.burninRemoved.resampled.trees
 
 ## Relationship to other repos
 
-- **`bdbv-pipeline`** (Part 1) — Download, clean, align, build ML tree
+- **`bdbv-pipeline-nf`** (Part 1) — Download, clean, align, build ML tree
+- **`bdbv-pipeline-part2`** — the original Python-only version of this pipeline
 - **`2026_BDBV_phylogeography`** — Phylogeographic analysis (DTA/BSSVS on empirical trees)

@@ -1,0 +1,211 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/rmcolq/bdbv-pipeline-beast-nf/main/nextflow_schema.json",
+  "title": "rmcolq/bdbv-pipeline-beast-nf",
+  "description": "BEAST XML generation and postprocessing for Bundibugyo ebolavirus (BDBV) phylodynamics, picking up from the final alignment of bdbv-pipeline.",
+  "url": "https://github.com/rmcolq/bdbv-pipeline-beast-nf",
+  "type": "object",
+  "definitions": {
+    "input_options": {
+      "title": "Input options",
+      "type": "object",
+      "fa_icon": "fas fa-terminal",
+      "description": "Provide --alignment to generate BEAST XMLs, --beast_dir to postprocess BEAST output, or both.",
+      "properties": {
+        "alignment": {
+          "type": "string",
+          "title": "Alignment",
+          "description": "Final alignment from bdbv-pipeline (Part 1). Generates BEAST XMLs",
+          "format": "file-path"
+        },
+        "beast_dir": {
+          "type": "string",
+          "title": "BEAST output directory",
+          "description": "Directory with BEAST .log and .trees files. Runs postprocessing",
+          "format": "directory-path"
+        }
+      }
+    },
+    "output_options": {
+      "title": "Output options",
+      "type": "object",
+      "fa_icon": "fas fa-folder-open",
+      "description": "Where results are written and how they are named.",
+      "properties": {
+        "outdir": {
+          "type": "string",
+          "title": "Output directory",
+          "description": "Folder for all output files",
+          "default": "output"
+        },
+        "run_name": {
+          "type": "string",
+          "title": "Run name",
+          "description": "Label used in the default prefix (default: today, YYYYMMDD)"
+        },
+        "prefix": {
+          "type": "string",
+          "title": "Prefix",
+          "description": "Prefix for output file names (default: bdbv_<run_name>)"
+        }
+      }
+    },
+    "beast_options": {
+      "title": "BEAST XML options",
+      "type": "object",
+      "description": "BEAST XML generation from the final alignment. One XML is generated per template.",
+      "properties": {
+        "template_sg": {
+          "type": "string",
+          "title": "SkyGrid template",
+          "description": "SkyGrid coalescent template (uses --anchor_date)",
+          "help_text": "Defaults to templates/GTR_SG.template.xml. Pass your own file, or use false to skip.",
+          "format": "file-path"
+        },
+        "template_mat": {
+          "type": "string",
+          "title": "MAT SkyGrid template",
+          "description": "MAT (mutation-annotated tree) SkyGrid template (uses --anchor_date)",
+          "help_text": "Off by default, e.g. templates/GTR_SG_MAT.template.xml.",
+          "format": "file-path"
+        },
+        "template_egc": {
+          "type": "string",
+          "title": "EGC template",
+          "description": "Exponential growth coalescent template",
+          "help_text": "Defaults to templates/GTR_EGC.template.xml. Pass your own file, or use false to skip.",
+          "format": "file-path"
+        },
+        "template_lgc": {
+          "type": "string",
+          "title": "LGC template",
+          "description": "Logistic growth coalescent template",
+          "help_text": "Off by default, e.g. templates/GTR_LGC.template.xml.",
+          "format": "file-path"
+        },
+        "anchor_date": {
+          "type": "string",
+          "title": "Anchor date",
+          "description": "SkyGrid anchor date; the grid extends from this date to the latest sample",
+          "default": "2025-11-08"
+        },
+        "chain_length": {
+          "type": "integer",
+          "title": "Chain length",
+          "description": "MCMC chain length",
+          "default": 500000000
+        },
+        "log_every": {
+          "type": "integer",
+          "title": "Log every",
+          "description": "Log sampling interval",
+          "default": 50000
+        }
+      }
+    },
+    "postprocess_options": {
+      "title": "Postprocessing options",
+      "type": "object",
+      "description": "Postprocessing of BEAST logs and trees.",
+      "properties": {
+        "burnin": {
+          "type": "number",
+          "title": "Burnin",
+          "description": "Fraction of samples/trees discarded as burnin",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "resample": {
+          "type": "integer",
+          "title": "Resample",
+          "description": "Target tree count after resampling",
+          "default": 1000
+        },
+        "min_ess": {
+          "type": "number",
+          "title": "Minimum ESS",
+          "description": "Minimum acceptable ESS for key parameters",
+          "default": 200
+        },
+        "force_low_ess": {
+          "type": "boolean",
+          "title": "Force low ESS",
+          "description": "Continue to tree postprocessing even if key parameters are below the ESS threshold",
+          "default": false
+        },
+        "treeannotator": {
+          "type": "string",
+          "title": "TreeAnnotator",
+          "description": "TreeAnnotator executable used for the MCC tree",
+          "default": "treeannotator"
+        }
+      }
+    },
+    "miscellaneous_options": {
+      "title": "Miscellaneous Options",
+      "type": "object",
+      "fa_icon": "fas fa-file-import",
+      "description": "Everything else.",
+      "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
+      "properties": {
+        "help": {
+          "type": "boolean",
+          "title": "Display help text",
+          "fa_icon": "fas fa-question-circle",
+          "hidden": true
+        },
+        "version": {
+          "type": "boolean",
+          "title": "Display version",
+          "description": "Display version and exit.",
+          "fa_icon": "fas fa-question-circle",
+          "hidden": true
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "#/definitions/input_options"
+    },
+    {
+      "$ref": "#/definitions/output_options"
+    },
+    {
+      "$ref": "#/definitions/beast_options"
+    },
+    {
+      "$ref": "#/definitions/postprocess_options"
+    },
+    {
+      "$ref": "#/definitions/miscellaneous_options"
+    }
+  ],
+  "properties": {
+    "aws_image_prefix": {
+      "type": "string",
+      "title": "AWS image prefix",
+      "hidden": true
+    },
+    "aws_queue": {
+      "type": "string",
+      "title": "AWS queue",
+      "hidden": true
+    },
+    "monochrome_logs": {
+      "type": "boolean"
+    },
+    "validate_params": {
+      "type": "boolean",
+      "default": true
+    },
+    "show_hidden_params": {
+      "type": "boolean"
+    }
+  },
+  "docs": {
+    "intro": "\nBEAST XML generation and postprocessing for Bundibugyo ebolavirus (BDBV) phylodynamics, picking up from the final alignment of bdbv-pipeline.\n\n",
+    "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)"
+  }
+}

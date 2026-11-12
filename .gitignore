@@ -1,0 +1,5 @@
+test_*/
+__pycache__/
+work/
+.nextflow*
+output/
